@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { getWriteDatabaseConfig } from './config/database-write.config';
 import { getReadDatabaseConfig } from './config/database-read.config';
+import { UsersModule } from './users/users.module';
 
 /**
  * AppModule - Configuración Principal con CQRS
@@ -51,6 +52,9 @@ import { getReadDatabaseConfig } from './config/database-read.config';
       useFactory: getReadDatabaseConfig,
       inject: [ConfigService],
     }),
+
+    // Users Module - Contiene los @MessagePattern para Kafka
+    UsersModule,
   ],
 })
 export class AppModule {}

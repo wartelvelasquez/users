@@ -5,8 +5,6 @@ export class RegisterUserCommand {
     public readonly firstName: string,
     public readonly lastName: string,
     public readonly phone?: string,
-    public readonly acceptTerms: boolean = false,
-    public readonly marketingConsent: boolean = false,
     public readonly ipAddress?: string,
     public readonly userAgent?: string,
     public readonly referralCode?: string,
@@ -22,9 +20,6 @@ export class RegisterUserCommand {
     }
     if (!lastName || lastName.trim().length === 0) {
       throw new Error('Last name is required');
-    }
-    if (!acceptTerms) {
-      throw new Error('Terms and conditions must be accepted');
     }
   }
 
@@ -44,7 +39,6 @@ export class RegisterUserCommand {
     return {
       ipAddress: this.ipAddress,
       userAgent: this.userAgent,
-      marketingConsent: this.marketingConsent,
       referralCode: this.referralCode,
       registrationSource: 'web',
       timestamp: new Date().toISOString(),
@@ -57,8 +51,6 @@ export class RegisterUserCommand {
     firstName: string;
     lastName: string;
     phone?: string;
-    acceptTerms?: boolean;
-    marketingConsent?: boolean;
     ipAddress?: string;
     userAgent?: string;
     referralCode?: string;
@@ -69,8 +61,6 @@ export class RegisterUserCommand {
       request.firstName,
       request.lastName,
       request.phone,
-      request.acceptTerms || false,
-      request.marketingConsent || false,
       request.ipAddress,
       request.userAgent,
       request.referralCode,

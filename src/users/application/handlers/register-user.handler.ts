@@ -170,22 +170,6 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
             }
           };
         }
-
-        if (error.message.includes('Terms and conditions must be accepted')) {
-          return {
-            success: false,
-            validationErrors: {
-              isValid: false,
-              errors: [
-                {
-                  field: 'acceptTerms',
-                  message: 'Terms and conditions must be accepted',
-                  code: 'TERMS_NOT_ACCEPTED'
-                }
-              ]
-            }
-          };
-        }
       }
 
       // Error genérico

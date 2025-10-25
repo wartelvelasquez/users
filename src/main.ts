@@ -1,66 +1,42 @@
-import * as dotenv from 'dotenv';
+import * as dotenv from "dotenv";
 dotenv.config();
 
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { MicroserviceOptions } from '@nestjs/microservices';
-import { KafkaServer } from './kafka.server';
-import { Logger } from '@nestjs/common';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { MicroserviceOptions } from "@nestjs/microservices";
+import { KafkaServer } from "./kafka.server";
+import { Logger, ValidationPipe } from "@nestjs/common";
+import { AllRpcExceptionsFilter } from "./common/filters/rpc-exception.filter";
 
 async function bootstrap() {
-  const logger = new Logger('Main');
+  const logger = new Logger("Main");
 
   const urlBroker = process.env.URL_BROKER;
   const kfUsername = process.env.KFUSERNAME;
   const kfPassword = process.env.KFPASSWORD;
   const groupId = process.env.GROUP_ID_KAFKA;
 
-  if (!urlBroker || !kfUsername || !kfPassword) {
-    console.warn('⚠️  Kafka variables not configured, skipping Kafka microservice setup');
-    // Solo crear la aplicación HTTP sin Kafka
-    const httpApp = await NestFactory.create(AppModule);
-    
-    // Configurar CORS para webhooks
-    httpApp.enableCors({
-      origin: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Trulioo-Signature'],
-      credentials: true,
-    });
-    
-    // Configurar tamaño de payload para webhooks
-    httpApp.use(require('express').json({ limit: '10mb' }));
-    httpApp.use(require('express').urlencoded({ extended: true, limit: '10mb' }));
-    
-    await httpApp.listen(3000);
-    logger.log('HTTP Application started on port 3000 (Kafka disabled)');
-    logger.log('Webhook endpoint available at: http://localhost:3000/api/kyc/webhooks/trulioo');
-    return;
+  if (!urlBroker) {
+    logger.error(
+      "ERROR: URL_BROKER is not configured. This microservice requires Kafka to function."
+    );
+    logger.error("Please configure the following environment variables:");
+    logger.error("  - URL_BROKER (required)");
+    logger.error("  - KFUSERNAME (optional, for SASL authentication)");
+    logger.error("  - KFPASSWORD (optional, for SASL authentication)");
+    logger.error("  - GROUP_ID_KAFKA (optional, defaults to DEFAULT_GROUP_ID)");
+    process.exit(1);
   }
 
-  // Topics suscritos por el microservicio
-  const subscribedTopics = [
-    'user.create',
-    'user.findAll',
-    'user.findById',
-    'user.update',
-    'user.delete',
-    'user.health',
-  ];
-
-  // Mostrar información de configuración de Kafka
-  logger.log('\n' + '='.repeat(70));
-  logger.log('🚀 KAFKA CONFIGURATION');
-  logger.log('='.repeat(70));
-  logger.log(`📡 Broker: ${urlBroker}`);
-  logger.log(`👤 Username: ${kfUsername}`);
-  logger.log(`🔐 Authentication: SASL/PLAIN`);
-  logger.log(`👥 Consumer Group: ${groupId || `apigateway-consumer-${Date.now()}`}`);
-  logger.log(`📋 Subscribed Topics (${subscribedTopics.length}):`);
-  subscribedTopics.forEach((topic, index) => {
-    logger.log(`   ${index + 1}. ${topic}`);
-  });
-  logger.log('='.repeat(70) + '\n');
+  // Configurar SASL solo si hay credenciales
+  const saslConfig =
+    kfUsername && kfPassword
+      ? {
+          mechanism: "plain" as const,
+          username: kfUsername,
+          password: kfPassword,
+        }
+      : undefined;
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
@@ -69,30 +45,46 @@ async function bootstrap() {
         client: {
           brokers: [urlBroker],
           ssl: false,
-          sasl: {
-            mechanism: 'plain',
-            username: kfUsername,
-            password: kfPassword,
-          },
+          sasl: saslConfig,
         },
         consumer: {
-          groupId: groupId || `apigateway-consumer-${Date.now()}`,
+          groupId: groupId || "DEFAULT_GROUP_ID",
         },
       }),
-    },
+    }
+  );
+
+  // Configurar filtros globales para mejor manejo de errores
+  app.useGlobalFilters(new AllRpcExceptionsFilter());
+
+  // Configurar pipes de validación global
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) => ({
+          field: error.property,
+          errors: Object.values(error.constraints || {}),
+        }));
+        return {
+          statusCode: 400,
+          message: "Validation failed",
+          errors: messages,
+        };
+      },
+    })
   );
 
   await app.listen();
-  
-  // Confirmación de conexión exitosa
-  logger.log('\n' + '='.repeat(70));
-  logger.log('✅ KAFKA CONNECTION SUCCESSFUL');
-  logger.log('='.repeat(70));
-  logger.log('🎯 Status: Connected and listening for messages');
-  logger.log(`📡 Broker: ${urlBroker}`);
-  logger.log(`👥 Consumer Group: ${groupId || 'apigateway-consumer-server'}`);
-  logger.log(`📨 Ready to receive messages on ${subscribedTopics.length} topics`);
-  logger.log('='.repeat(70) + '\n');
+  logger.log("Configuration Microservice Started");
+  logger.log(`Kafka Broker: ${urlBroker}`);
+  logger.log(`Consumer Group: ${groupId}`);
+  logger.log(`SASL Authentication: ${saslConfig ? "Enabled" : "Disabled"}`);
+  logger.log("Global exception filter enabled");
+  logger.log("Global validation pipe enabled");
+  logger.debug("Listening for messages on topics");
 }
 
 bootstrap();
