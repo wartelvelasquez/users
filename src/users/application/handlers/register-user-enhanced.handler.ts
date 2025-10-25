@@ -6,10 +6,9 @@ import { Email } from 'src/shared/domain/value-objects/email.vo';
 import { Password } from 'src/shared/domain/value-objects/password.vo';
 import { PersonName } from 'src/shared/domain/value-objects/person-name.vo';
 import { Phone } from 'src/shared/domain/value-objects/phone.vo';
-import { CountryCode } from 'src/shared/domain/value-objects/country-code.vo';
-import { UserRegistrationDomainService } from '../../domain/services/user-registration.domain-service';
 import { UserRegisteredEvent } from '../../domain/events/user-registered.event';
 import * as bcrypt from 'bcrypt';
+import { UserRegistrationDomainService } from 'src/users/domain/services/user-authentication.domain-service';
 
 export interface RegisterUserResult {
   success: boolean;
@@ -152,45 +151,4 @@ export class RegisterUserEnhancedHandler implements ICommandHandler<RegisterUser
     }
   }
 }
-
-/**
- * Key DDD Concepts Demonstrated:
- * 
- * 1. **Ubiquitous Language**: 
- *    - RegisterUserCommand, UserRegisteredEvent, UserRepository
- *    - Domain-specific terminology throughout
- * 
- * 2. **Value Objects**: 
- *    - Email, Password encapsulate validation and behavior
- *    - Immutable and self-validating
- * 
- * 3. **Aggregates**: 
- *    - User is an aggregate root
- *    - Maintains consistency boundaries
- *    - Generates domain events
- * 
- * 4. **Domain Services**: 
- *    - UserRegistrationDomainService handles complex business logic
- *    - Coordinates multiple operations
- * 
- * 5. **Domain Events**: 
- *    - UserRegisteredEvent represents a business fact
- *    - Enables event-driven architecture
- *    - Supports eventual consistency
- * 
- * 6. **Repository Pattern**: 
- *    - Abstracts persistence details
- *    - Provides aggregate retrieval/storage
- *    - Integrates with Event Store
- * 
- * 7. **CQRS**: 
- *    - Commands for writes (this handler)
- *    - Queries for reads (separate query handlers)
- *    - Optimized read/write models
- * 
- * 8. **Event Sourcing**: 
- *    - Events persisted to event store
- *    - State can be rebuilt from events
- *    - Complete audit trail
- */
 

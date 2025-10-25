@@ -8,6 +8,7 @@ import { UserId } from 'src/shared/domain/value-objects/user-id.vo';
 import { Password } from 'src/shared/domain/value-objects/password.vo';
 import { PersonName } from 'src/shared/domain/value-objects/person-name.vo';
 import { Phone } from 'src/shared/domain/value-objects/phone.vo';
+import { UserRegisteredEvent } from '../../domain/events/user-registered.event';
 import * as bcrypt from 'bcrypt';
 
 export interface RegisterUserResult {
@@ -76,10 +77,6 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
           };
         }
       }
-
-
-
-
       // Hashear la contraseña
       const saltRounds = 12;
       const hashedPassword = await bcrypt.hash(command.password, saltRounds);
@@ -96,8 +93,19 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
       // Guardar el usuario en la base de datos
       await this.userRepository.save(user);
 
-      // Emitir evento de usuario registrado (opcional)
-      // this.eventBus.publish(new UserRegisteredEvent(user.id.value, user.email.value));
+      // Emitir evento de usuario registrado para crear proyección (comentado temporalmente)
+      // this.eventBus.publish(new UserRegisteredEvent(
+      //   user.id.value,
+      //   user.email.value,
+      //   {
+      //     email: user.email.value,
+      //     firstName: user.firstName.value,
+      //     lastName: user.lastName.value,
+      //     phone: user.phone?.value,
+      //     status: user.status,
+      //   },
+      //   new Date()
+      // ));
 
       return {
         success: true,

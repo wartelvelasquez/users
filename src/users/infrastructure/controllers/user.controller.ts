@@ -1,5 +1,5 @@
 import { Controller, Logger } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { RegisterUserCommand } from '../../application/commands/register-user.command';
 import { UpdateUserMilioCommand } from '../../application/commands/update-user-milio.command';
@@ -35,8 +35,8 @@ export class UserController {
     // Extraer el body del payload enviado por el API Gateway
     const data: RegisterDto = payload.body || payload;
     
-    this.logger.log(`[Kafka] Received user.create event`);
-    this.logger.log(`[Kafka] Creating user: ${data.email}`);
+    this.logger.log(`Received user.create event`);
+    this.logger.log(`Creating user: ${data.email}`);
     
     try {
       const command = new RegisterUserCommand(
@@ -49,16 +49,47 @@ export class UserController {
 
       const result = await this.commandBus.execute(command);
       
-      this.logger.log(`[Kafka] User created successfully: ${data.email}`);
+      // Verificar si hay errores de validación relacionados con conflictos
+      if (!result.success && result.validationErrors) {
+        const conflictCodes = ['EMAIL_ALREADY_EXISTS', 'PHONE_ALREADY_EXISTS'];
+        const hasConflict = result.validationErrors.errors?.some(
+          error => conflictCodes.includes(error.code)
+        );
+        
+        if (hasConflict) {
+          const conflictError = result.validationErrors.errors.find(
+            error => conflictCodes.includes(error.code)
+          );
+          
+          this.logger.warn(`Conflict detected: ${conflictError.code} - ${conflictError.message}`);
+          
+          throw new RpcException({
+            statusCode: 409,
+            message: conflictError.message,
+            error: 'Conflict',
+            code: conflictError.code,
+            field: conflictError.field,
+          });
+        }
+      }
+      
+      this.logger.log(`User created successfully: ${data.email}`);
       
       return {
-        success: true,
-        message: 'Usuario creado exitosamente',
+        success: result.success,
+        message: result.success ? 'Usuario creado exitosamente' : 'Error al crear usuario',
         data: result,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error(`[Kafka] Failed to create user: ${error.message}`, error.stack);
+      // Si es una RpcException (como 409 Conflict), dejarla pasar sin capturar
+      if (error.name === 'RpcException' || error.error) {
+        this.logger.warn(`RpcException thrown: ${error.message || error.error}`);
+        throw error;
+      }
+      
+      // Para otros errores, loggear y retornar respuesta de error
+      this.logger.error(`Failed to create user: ${error.message}`, error.stack);
       return {
         success: false,
         message: error.message || 'Error al crear usuario',
@@ -70,7 +101,7 @@ export class UserController {
 
   /**
    * user.findAll
-   * Obtener todos los usuarios con paginación y filtros
+   * Obtener todos los usuarios con paginación (sin filtros)
    */
   @MessagePattern('user.findAll')
   async getAllUsers(@Payload() payload: any) {
@@ -79,15 +110,13 @@ export class UserController {
     const page = queryParams.page || 1;
     const limit = queryParams.limit || 10;
     
-    this.logger.log(`[Kafka] Received user.findAll event`);
-    this.logger.log(`[Kafka] Getting all users - page: ${page}, limit: ${limit}`);
+    this.logger.log(`Received user.findAll event`);
+    this.logger.log(`Getting all users - page: ${page}, limit: ${limit}`);
     
     try {
+      // Query simple sin filtros, solo paginación
       const query = new SearchUsersQuery(
-        {
-          status: queryParams.status,
-          // Puedes agregar más filtros aquí
-        },
+        {}, // Sin filtros
         {
           page: Number(page),
           limit: Number(limit)
@@ -96,13 +125,13 @@ export class UserController {
 
       const result = await this.queryBus.execute(query);
       
-      this.logger.log(`[Kafka] Retrieved ${result.data.length} users`);
+      this.logger.log(`Retrieved ${result.users.length} users of ${result.total} total`);
       
       return {
         success: true,
         message: 'Usuarios obtenidos exitosamente',
         data: {
-          users: result.data,
+          users: result.users,
           pagination: {
             page: result.page,
             limit: result.limit,
@@ -113,7 +142,7 @@ export class UserController {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error(`[Kafka] Failed to get users: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get users: ${error.message}`, error.stack);
       return {
         success: false,
         message: error.message || 'Error al obtener usuarios',
@@ -133,14 +162,14 @@ export class UserController {
     const params = payload.params || payload;
     const userId = params.id;
     
-    this.logger.log(`[Kafka] Received user.findById event`);
-    this.logger.log(`[Kafka] Getting user by ID: ${userId}`);
+    this.logger.log(`Received user.findById event`);
+    this.logger.log(`Getting user by ID: ${userId}`);
     
     try {
       const query = new GetUserProjectionQuery(userId);
       const result = await this.queryBus.execute(query);
       
-      this.logger.log(`[Kafka] User found: ${userId}`);
+      this.logger.log(`User found: ${userId}`);
       
       return {
         success: true,
@@ -149,7 +178,7 @@ export class UserController {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error(`[Kafka] Failed to get user ${userId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get user ${userId}: ${error.message}`, error.stack);
       return {
         success: false,
         message: error.message || 'Error al obtener usuario',
@@ -170,8 +199,8 @@ export class UserController {
     const body = payload.body || payload;
     const userId = params.id;
     
-    this.logger.log(`[Kafka] Received user.update event`);
-    this.logger.log(`[Kafka] Updating user: ${userId}`);
+    this.logger.log(`Received user.update event`);
+    this.logger.log(`Updating user: ${userId}`);
     
     try {
       // Mapear a UpdateUserMilioCommand para compatibilidad
@@ -183,7 +212,7 @@ export class UserController {
       
       const result = await this.commandBus.execute(command);
       
-      this.logger.log(`[Kafka] User updated successfully: ${userId}`);
+      this.logger.log(`User updated successfully: ${userId}`);
       
       return {
         success: true,
@@ -192,7 +221,7 @@ export class UserController {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error(`[Kafka] Failed to update user ${userId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update user ${userId}: ${error.message}`, error.stack);
       return {
         success: false,
         message: error.message || 'Error al actualizar usuario',
@@ -214,15 +243,15 @@ export class UserController {
     const userId = params.id;
     const hardDelete = queryParams.hard === 'true' || queryParams.hard === true || false;
     
-    this.logger.log(`[Kafka] Received user.delete event`);
-    this.logger.log(`[Kafka] Deleting user: ${userId} (hard: ${hardDelete})`);
+    this.logger.log(`Received user.delete event`);
+    this.logger.log(`Deleting user: ${userId} (hard: ${hardDelete})`);
     
     try {
       // Soft delete: actualizar status a DELETED
       // TODO: Implementar comando de eliminación específico
       
       // Por ahora, usamos el repositorio directamente
-      this.logger.warn(`[Kafka] Soft delete not fully implemented yet. User ${userId} marked for deletion.`);
+      this.logger.warn(`Soft delete not fully implemented yet. User ${userId} marked for deletion.`);
       
       return {
         success: true,
@@ -235,7 +264,7 @@ export class UserController {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error(`[Kafka] Failed to delete user ${userId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to delete user ${userId}: ${error.message}`, error.stack);
       return {
         success: false,
         message: error.message || 'Error al eliminar usuario',
@@ -251,8 +280,8 @@ export class UserController {
    */
   @MessagePattern('user.health')
   async healthCheck(@Payload() payload?: any) {
-    this.logger.log('[Kafka] Received user.health event');
-    this.logger.log('[Kafka] Health check requested');
+    this.logger.log('Received user.health event');
+    this.logger.log('Health check requested');
     
     return {
       success: true,
