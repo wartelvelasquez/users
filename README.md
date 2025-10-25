@@ -844,9 +844,8 @@ Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](L
 
 ---
 
-## 👥 Equipo
+## 👥 Arquitectura
 
-- **Desarrollo**: Equipo de desarrollo ITS
 - **Arquitectura**: Implementación DDD, CQRS y Event Sourcing
 
 ---
