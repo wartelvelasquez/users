@@ -368,7 +368,7 @@ export class UserEventSourcingRepository implements UserRepository {
     await this.userRepository.update(idValues, { status: status as UserStatus });
   }
 
-  async updateUserForMilio(id: string, updateFields: any): Promise<void> {
+  async updateUserForProvider(id: string, updateFields: any): Promise<void> {
     await this.userRepository.update(id, updateFields);
   }
 

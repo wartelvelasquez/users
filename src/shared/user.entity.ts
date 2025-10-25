@@ -40,7 +40,7 @@ export class UserEntity {
   @Column({ nullable: true })
   role_id?: string;
 
-  // New fields for milio
+  // New fields for user
   @Column({ name: 'trade_name', nullable: true })
   tradeName?: string;
 

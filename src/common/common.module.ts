@@ -15,7 +15,7 @@ import { AppService } from '../app.service';
     ClientsModule.registerAsync([
       {
         imports: [ConfigModule],
-        name: 'NUEK-MICRO-SERVICE',
+        name: 'USER-MICRO-SERVICE',
         useFactory: (configService: ConfigService): ClientProvider => ({
           transport: Transport.KAFKA,
           options: {

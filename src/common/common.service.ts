@@ -6,7 +6,7 @@ import { AppService } from '../app.service';
 @Injectable()
 export class CommonService implements OnModuleInit {
   constructor(
-    @Inject('NUEK-MICRO-SERVICE')
+    @Inject('USER-MICRO-SERVICE')
     private readonly cfs: ClientKafka,
     private appService: AppService,
   ) {}
@@ -46,7 +46,7 @@ export class CommonService implements OnModuleInit {
   }
 
   handleMicroservicesError(error: any) {
-    const logger = new Logger('Its-Nuek');
+    const logger = new Logger('CommonService');
     const data = error;
 
     if (data) {

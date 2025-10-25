@@ -108,7 +108,7 @@ export abstract class UserRepository {
   /**
    * Update user by ID with provided fields
    */
-  abstract updateUserForMilio(id: string, updateFields: any): Promise<void>;
+  abstract updateUserForProvider(id: string, updateFields: any): Promise<void>;
 
   /**
    * Bulk update user status

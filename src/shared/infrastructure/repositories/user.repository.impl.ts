@@ -301,7 +301,7 @@ export class UserRepositoryImpl implements UserRepository {
     };
   }
 
-  async updateUserForMilio(id: string, updateFields: any): Promise<void> {
+  async updateUserForProvider(id: string, updateFields: any): Promise<void> {
     try {
       // First, find the user entity
       const userEntity = await this.userRepository.findOne({ where: { id } });

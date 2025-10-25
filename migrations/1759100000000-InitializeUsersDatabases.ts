@@ -143,7 +143,7 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
               isNullable: true,
               comment: 'Last successful login timestamp',
             },
-            // Milio specific fields
+            // User specific fields
             {
               name: 'trade_name',
               type: 'varchar',

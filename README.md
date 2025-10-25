@@ -416,7 +416,7 @@ npm run migration:show
 - updated_at (timestamp)
 - last_login_at (timestamp, nullable)
 
--- Campos específicos de Milio (negocio)
+-- Campos específicos del negocio
 - trade_name (varchar, nullable) - Nombre comercial
 - legal_name (varchar, nullable) - Razón social
 - dv (int, nullable) - Dígito de verificación
@@ -889,6 +889,6 @@ Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](L
 
 <div align="center">
   <p>Hecho por Wartel Velasquez ❤️ usando NestJS y TypeScript</p>
-  <p>© 2025 ITS. Microservicio de Usuarios con DDD, CQRS y Event Sourcing.</p>
+  <p>© 2025. Microservicio de Usuarios con DDD, CQRS y Event Sourcing.</p>
 </div>
 

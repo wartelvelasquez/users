@@ -2,7 +2,7 @@ import { CommandHandler, ICommandHandler } from "@nestjs/cqrs";
 import { Inject, Logger } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import { lastValueFrom } from "rxjs";
-import { UpdateUserMilioCommand } from "../commands/update-user-milio.command";
+import { UpdateUserCommand } from "../commands/update-user.command";
 import { UserRepository } from "src/shared/domain/repositories/user.repository";
 import { UserId } from "../../../shared/domain/value-objects/user-id.vo";
 import {
@@ -11,7 +11,7 @@ import {
   ServerException,
 } from "../../../common/exceptions";
 
-export interface UpdateUserMilio {
+export interface UpdateUser {
   success: boolean;
   message?: string;
   data?: {
@@ -19,19 +19,7 @@ export interface UpdateUserMilio {
     email: string;
     firstName: string;
     lastName: string;
-    tradeName?: string;
-    legalName?: string;
-    document?: string;
-    typeDocumentId?: number;
-    dv?: number;
-    emailNotification?: string;
-    indicativeContact?: string;
     phone?: string;
-    countryCode?: string;
-    phoneNumber?: string;
-    categoryId?: number;
-    dateOfBirth?: string;
-    addressData?: any;
     updatedAt: string;
   };
   validationErrors?: {
@@ -44,21 +32,21 @@ export interface UpdateUserMilio {
   };
 }
 
-@CommandHandler(UpdateUserMilioCommand)
-export class UpdateUserMilioHandler
-  implements ICommandHandler<UpdateUserMilioCommand, UpdateUserMilio>
+@CommandHandler(UpdateUserCommand)
+export class UpdateUserHandler
+  implements ICommandHandler<UpdateUserCommand, UpdateUser>
 {
-  private readonly logger = new Logger(UpdateUserMilioHandler.name);
+  private readonly logger = new Logger(UpdateUserHandler.name);
 
   constructor(
     @Inject("UserRepository")
     private readonly userRepository: UserRepository,
-    @Inject("NUEK-MICRO-SERVICE")
+    @Inject("USER-MICRO-SERVICE")
     private readonly kafkaClient: ClientKafka
   ) {}
 
-  async execute(command: UpdateUserMilioCommand): Promise<UpdateUserMilio> {
-    this.logger.log("Starting update user milio handler execution", {
+  async execute(command: UpdateUserCommand): Promise<UpdateUser> {
+    this.logger.log("Starting update user handler execution", {
       userId: command.userId,
     });
 
@@ -230,24 +218,12 @@ export class UpdateUserMilioHandler
           email: updatedUser.email.value,
           firstName: updatedUser.firstName.value,
           lastName: updatedUser.lastName.value,
-          tradeName: updateFields.tradeName,
-          legalName: updateFields.legalName,
-          document: updateFields.document,
-          typeDocumentId: updateFields.typeDocumentId,
-          dv: updateFields.dv,
-          emailNotification: updateFields.emailNotification,
-          indicativeContact: updateFields.indicativeContact,
           phone: updateFields.phone,
-          countryCode: updateFields.countryCode,
-          phoneNumber: updateFields.phoneNumber,
-          categoryId: updateFields.categoryId,
-          dateOfBirth: updateFields.date_of_birth,
-          addressData: updateFields.addressData,
           updatedAt: new Date().toISOString(),
         },
       };
     } catch (error) {
-      this.logger.error("Error in update user milio handler", {
+      this.logger.error("Error in update user handler", {
         error: error.message,
         stack: error.stack,
         userId: command.userId,
@@ -307,7 +283,7 @@ export class UpdateUserMilioHandler
    * Emite un evento a Kafka para notificar la actualización del usuario
    */
   private async emitUserUpdateEvent(eventPayload: any): Promise<void> {
-    const topic = "milio-provider-data";
+    const topic = "user-provider-data";
 
     try {
       this.logger.log(

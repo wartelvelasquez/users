@@ -1,13 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum } from 'class-validator';
-
-export enum UserStatus {
-  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
-  ACCEPTED = 'ACCEPTED',
-  REJECTED = 'REJECTED',
-  SUSPENDED = 'SUSPENDED',
-  DELETED = 'DELETED',
-}
+import { IsString, IsOptional } from 'class-validator';
 
 /**
  * DTO para actualizar usuario
@@ -40,15 +32,4 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   phone?: string;
-
-  @ApiProperty({
-    description: 'User status',
-    enum: UserStatus,
-    example: UserStatus.ACCEPTED,
-    required: false,
-  })
-  @IsOptional()
-  @IsEnum(UserStatus)
-  status?: UserStatus;
 }
-

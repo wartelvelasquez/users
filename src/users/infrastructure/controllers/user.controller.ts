@@ -2,7 +2,7 @@ import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { RegisterUserCommand } from '../../application/commands/register-user.command';
-import { UpdateUserMilioCommand } from '../../application/commands/update-user-milio.command';
+import { UpdateUserCommand } from '../../application/commands/update-user.command';
 import { GetUserProjectionQuery } from '../../application/queries/get-user-projection.query';
 import { SearchUsersQuery } from '../../application/queries/search-users.query';
 import { RegisterDto } from '../../application/dtos/register.dto';
@@ -203,11 +203,11 @@ export class UserController {
     this.logger.log(`Updating user: ${userId}`);
     
     try {
-      // Mapear a UpdateUserMilioCommand para compatibilidad
-      const command = new UpdateUserMilioCommand(userId, {
-        name: body.firstName,
+      // Mapear a UpdateUserCommand para compatibilidad
+      const command = new UpdateUserCommand(userId, {
+        firstName: body.firstName,
         lastName: body.lastName,
-        phoneContact: body.phone,
+        phone: body.phone,
       });
       
       const result = await this.commandBus.execute(command);
