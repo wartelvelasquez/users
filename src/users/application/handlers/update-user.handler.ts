@@ -1,4 +1,4 @@
-import { CommandHandler, ICommandHandler } from "@nestjs/cqrs";
+import { CommandHandler, ICommandHandler, EventBus } from "@nestjs/cqrs";
 import { Inject, Logger } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import { lastValueFrom } from "rxjs";
@@ -10,6 +10,9 @@ import {
   NotFoundException as CustomNotFoundException,
   ServerException,
 } from "../../../common/exceptions";
+import { ProfileUpdatedEvent } from "../../domain/events/profile-updated.event";
+import { EventStoreService } from "../../../shared/infrastructure/event-store/event-store.service";
+import { DirectProjectionService } from "../../../shared/infrastructure/projections/direct-projection.service";
 
 export interface UpdateUser {
   success: boolean;
@@ -42,7 +45,10 @@ export class UpdateUserHandler
     @Inject("UserRepository")
     private readonly userRepository: UserRepository,
     @Inject("USER-MICRO-SERVICE")
-    private readonly kafkaClient: ClientKafka
+    private readonly kafkaClient: ClientKafka,
+    private readonly eventBus: EventBus,
+    private readonly eventStore: EventStoreService,
+    private readonly directProjectionService: DirectProjectionService,
   ) {}
 
   async execute(command: UpdateUserCommand): Promise<UpdateUser> {
@@ -127,52 +133,26 @@ export class UpdateUserHandler
         updateFields,
       });
 
-      // Update the user entity in the database using a direct approach
-      this.logger.log("About to update user using direct approach", {
-        userId: command.userId,
-        updateFields,
-        userRepositoryType: typeof this.userRepository,
-        userRepositoryMethods: Object.getOwnPropertyNames(
-          Object.getPrototypeOf(this.userRepository)
-        ),
-      });
-
-      // Get the current user entity from the database
-      const userEntity = await this.userRepository.findById(
-        UserId.fromString(command.userId)
-      );
-      if (!userEntity) {
-        throw new Error(`User with id ${command.userId} not found`);
-      }
-
-      // Perform the actual database update using a direct approach
-      this.logger.log(
-        "Performing actual database update with fields:",
+      // Use the repository's updateProfile method to update write database
+      await this.userRepository.updateProfile(
+        UserId.fromString(command.userId),
         updateFields
       );
 
-      // Access the TypeORM repository directly through the userRepository
-      // We'll use a workaround by calling the internal repository
-      try {
-        // Get the internal TypeORM repository from the userRepository
-        const internalRepo = (this.userRepository as any).userRepository;
-        if (internalRepo && typeof internalRepo.update === "function") {
-          this.logger.log("Using internal TypeORM repository for update");
-          await internalRepo.update(command.userId, updateFields);
-          this.logger.log("Database update completed successfully");
-        } else {
-          this.logger.warn(
-            "Internal repository not available, simulating update"
-          );
-        }
-      } catch (error) {
-        this.logger.error("Error during database update:", error);
-        throw error;
-      }
-
-      this.logger.log("User updated successfully in database", {
+      this.logger.log("User updated successfully in write database", {
         userId: command.userId,
       });
+
+      // Update read database projection directly
+      await this.directProjectionService.updateUserProfile(command.userId, updateFields);
+
+      this.logger.log("User projection updated successfully in read database", {
+        userId: command.userId,
+      });
+
+      // Emitir evento de dominio para otros sistemas (opcional)
+      await this.publishProfileUpdatedEvent(command.userId, updateFields);
+
       this.logger.log("Emitting user update event to Kafka", {
         userId: command.userId,
       });
@@ -320,6 +300,61 @@ export class UpdateUserHandler
       );
       // No lanzamos el error para no interrumpir el flujo principal
       // Solo lo logueamos
+    }
+  }
+
+  /**
+   * Publica el evento de perfil actualizado
+   */
+  private async publishProfileUpdatedEvent(
+    userId: string,
+    changes: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+    },
+  ): Promise<void> {
+    try {
+      this.logger.log('Creating ProfileUpdatedEvent', {
+        userId,
+        changes,
+      });
+
+      const profileUpdatedEvent = new ProfileUpdatedEvent(userId, changes);
+      
+      // Almacenar evento en el event store para sincronización de proyección
+      const latestVersion = await this.eventStore.getLatestVersion(userId);
+      
+      this.logger.log('Appending event to event store', {
+        userId,
+        eventType: profileUpdatedEvent.getEventType(),
+        version: latestVersion + 1,
+      });
+
+      await this.eventStore.appendEvent(
+        userId,
+        'User',
+        profileUpdatedEvent,
+        latestVersion + 1,
+      );
+
+      // También publicar al event bus para procesamiento en tiempo real
+      this.eventBus.publish(profileUpdatedEvent);
+
+      this.logger.log('✅ Profile updated event stored and published successfully', {
+        userId,
+        eventType: profileUpdatedEvent.getEventType(),
+        version: latestVersion + 1,
+        changes,
+      });
+    } catch (error) {
+      this.logger.error('❌ Failed to publish profile updated event', {
+        userId,
+        error: error.message,
+        stack: error.stack,
+      });
+      // No lanzamos el error para no interrumpir el flujo principal
+      // Solo lo logueamos para debugging
     }
   }
 }

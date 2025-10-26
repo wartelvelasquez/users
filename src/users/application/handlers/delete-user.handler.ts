@@ -10,6 +10,7 @@ import {
 } from '../../../common/exceptions';
 import { UserDeletedEvent } from '../../domain/events/user-deleted.event';
 import { EventStoreService } from '../../../shared/infrastructure/event-store/event-store.service';
+import { DirectProjectionService } from '../../../shared/infrastructure/projections/direct-projection.service';
 
 export interface DeleteUserResponse {
   success: boolean;
@@ -42,6 +43,7 @@ export class DeleteUserHandler
     private readonly userRepository: UserRepository,
     private readonly eventBus: EventBus,
     private readonly eventStore: EventStoreService,
+    private readonly directProjectionService: DirectProjectionService,
   ) {}
 
   async execute(command: DeleteUserCommand): Promise<DeleteUserResponse> {
@@ -77,7 +79,14 @@ export class DeleteUserHandler
         return this.createValidationError('userId', 'Usuario no encontrado después de la eliminación', 'USER_NOT_FOUND_AFTER_DELETE');
       }
 
-      // Publicar evento de dominio para sincronización de proyección
+      // Actualizar proyección en base de lectura directamente
+      await this.directProjectionService.markUserAsDeleted(command.userId);
+
+      this.logger.log('User projection marked as deleted in read database', {
+        userId: command.userId,
+      });
+
+      // Publicar evento de dominio para otros sistemas (opcional)
       await this.publishUserDeletedEvent(command.userId, deletedUser.email.value, now, command.hardDelete);
 
       this.logger.log('Eliminación suave completada exitosamente', {
@@ -146,22 +155,29 @@ export class DeleteUserHandler
   private async performSoftDelete(userId: string, timestamp: Date): Promise<void> {
     this.logger.log('Realizando eliminación suave', { userId });
 
-    // Obtener el repositorio interno de TypeORM desde el userRepository
-    const internalRepo = (this.userRepository as any).userRepository;
-    if (!internalRepo || typeof internalRepo.update !== 'function') {
-      this.logger.error('Repositorio interno no disponible');
-      throw new Error('Error en actualización de base de datos: repositorio interno no disponible');
-    }
+    // Usar el método updateProfile del repositorio para actualizar la base de datos de escritura
+    await this.userRepository.updateProfile(
+      UserId.fromString(userId),
+      {
+        status: UserStatus.DELETE,
+      }
+    );
 
-    await internalRepo.update(userId, {
-      deletedAt: timestamp,
-      status: UserStatus.BLOCKED,
-      updatedAt: timestamp,
-    });
+    // Actualizar deletedAt directamente usando el repositorio interno
+    const internalRepo = (this.userRepository as any).userRepository;
+    if (internalRepo && typeof internalRepo.update === 'function') {
+      await internalRepo.update(userId, {
+        deletedAt: timestamp,
+        updatedAt: timestamp,
+      });
+    } else {
+      this.logger.warn('No se pudo actualizar deletedAt - repositorio interno no disponible');
+    }
 
     this.logger.log('Usuario eliminado suavemente exitosamente', {
       userId,
       deletedAt: timestamp.toISOString(),
+      status: UserStatus.DELETE,
     });
   }
 

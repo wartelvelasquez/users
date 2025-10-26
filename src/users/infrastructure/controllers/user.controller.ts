@@ -235,7 +235,7 @@ export class UserController {
   /**
    * user.delete
    * Eliminar un usuario por ID (soft delete)
-   * Actualiza deleted_at y status a BLOCKED
+   * Actualiza deleted_at y status a DELETE
    */
   @MessagePattern('user.delete')
   async deleteUser(@Payload() payload: any) {

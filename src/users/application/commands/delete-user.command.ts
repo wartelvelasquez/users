@@ -3,7 +3,7 @@
  * 
  * Este comando realiza un soft delete actualizando:
  * - deleted_at: timestamp actual
- * - status: BLOCKED
+ * - status: DELETE
  */
 export class DeleteUserCommand {
   constructor(
