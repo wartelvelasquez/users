@@ -4,7 +4,7 @@ import { MigrationInterface, QueryRunner, Table } from 'typeorm';
  * InitializeUsersDatabases - Migración Maestra Única
  * 
  * Prerequisitos:
- * - Las bases de datos auth_write y auth_read deben existir previamente
+ * - Las bases de datos users_write y users_read deben existir previamente
  * - Las extensiones necesarias (uuid-ossp, pg_trgm) deben estar disponibles
  * 
  * Esta migración:
@@ -13,12 +13,16 @@ import { MigrationInterface, QueryRunner, Table } from 'typeorm';
  * - Limpia elementos obsoletos si existen
  * - Es idempotente (se puede ejecutar múltiples veces)
  * 
- * Write DB (auth_write):
- *   - users (17 campos)
+ * Write DB (users_write):
+ *   - users (12 campos: id, email, first_name, last_name, password, status, phone, 
+ *            role_id, created_at, updated_at, last_login_at, deleted_at)
  *   - domain_events (9 campos - Event Store)
  * 
- * Read DB (auth_read):
- *   - user (12 campos - CQRS)
+ * Read DB (users_read):
+ *   - users (13 campos - CQRS: id, email, full_name, status, phone, last_login_at,
+ *            failed_login_attempts, roles, permissions, profile_completion, 
+ *            created_at, updated_at, deleted_at)
+ *   - domain_events (9 campos - Event Store Copy)
  */
 export class InitializeUsersDatabases1759100000000 implements MigrationInterface {
   name = 'InitializeUsersDatabases1759100000000';
@@ -143,46 +147,11 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
               isNullable: true,
               comment: 'Last successful login timestamp',
             },
-            // User specific fields
             {
-              name: 'trade_name',
-              type: 'varchar',
-              length: '255',
+              name: 'deleted_at',
+              type: 'timestamp',
               isNullable: true,
-              comment: 'Business trade name',
-            },
-            {
-              name: 'legal_name',
-              type: 'varchar',
-              length: '255',
-              isNullable: true,
-              comment: 'Legal business name',
-            },
-            {
-              name: 'dv',
-              type: 'int',
-              isNullable: true,
-              comment: 'Verification digit',
-            },
-            {
-              name: 'email_notification',
-              type: 'varchar',
-              length: '255',
-              isNullable: true,
-              comment: 'Notification email',
-            },
-            {
-              name: 'indicative_contact',
-              type: 'varchar',
-              length: '50',
-              isNullable: true,
-              comment: 'Contact phone indicator',
-            },
-            {
-              name: 'category_id',
-              type: 'int',
-              isNullable: true,
-              comment: 'Business category reference',
+              comment: 'Soft delete timestamp',
             },
           ],
         }),
@@ -200,7 +169,7 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
         CREATE INDEX "IDX_USERS_CREATED_AT" ON "users" ("created_at");
       `);
 
-      console.log('  ✓ Table "users" created (17 fields)');
+      console.log('  ✓ Table "users" created (12 fields)');
     } else {
       console.log('  ℹ️  Table "users" already exists');
     }
@@ -326,13 +295,13 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
     console.log('\n📖 Creating READ tables (CQRS)...');
 
     // ============================================
-    // TABLA: user
+    // TABLA: users
     // ============================================
-    const hasProjections = await queryRunner.hasTable('user');
-    if (!hasProjections) {
+    const hasUsers = await queryRunner.hasTable('users');
+    if (!hasUsers) {
       await queryRunner.createTable(
         new Table({
-          name: 'user',
+          name: 'users',
           columns: [
             {
               name: 'id',
@@ -414,6 +383,12 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
               default: 'CURRENT_TIMESTAMP',
               comment: 'Last update timestamp',
             },
+            {
+              name: 'deleted_at',
+              type: 'timestamp',
+              isNullable: true,
+              comment: 'Soft delete timestamp',
+            },
           ],
         }),
         true,
@@ -421,33 +396,150 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
 
       // Índices optimizados para queries
       await queryRunner.query(`
-        CREATE UNIQUE INDEX "IDX_USER_PROJECTIONS_EMAIL" 
-        ON "user" ("email");
+        CREATE UNIQUE INDEX "IDX_USERS_READ_EMAIL" 
+        ON "users" ("email");
       `);
       await queryRunner.query(`
-        CREATE INDEX "IDX_USER_PROJECTIONS_STATUS" 
-        ON "user" ("status");
+        CREATE INDEX "IDX_USERS_READ_STATUS" 
+        ON "users" ("status");
       `);
       await queryRunner.query(`
-        CREATE INDEX "IDX_USER_PROJECTIONS_CREATED_AT" 
-        ON "user" ("created_at" DESC);
+        CREATE INDEX "IDX_USERS_READ_CREATED_AT" 
+        ON "users" ("created_at" DESC);
       `);
       await queryRunner.query(`
-        CREATE INDEX "IDX_USER_PROJECTIONS_LAST_LOGIN_AT" 
-        ON "user" ("last_login_at" DESC NULLS LAST);
+        CREATE INDEX "IDX_USERS_READ_LAST_LOGIN_AT" 
+        ON "users" ("last_login_at" DESC NULLS LAST);
       `);
       await queryRunner.query(`
-        CREATE INDEX "IDX_USER_PROJECTIONS_ROLES" 
-        ON "user" USING GIN ("roles");
+        CREATE INDEX "IDX_USERS_READ_ROLES" 
+        ON "users" USING GIN ("roles");
       `);
       await queryRunner.query(`
-        CREATE INDEX "IDX_USER_PROJECTIONS_PERMISSIONS" 
-        ON "user" USING GIN ("permissions");
+        CREATE INDEX "IDX_USERS_READ_PERMISSIONS" 
+        ON "users" USING GIN ("permissions");
+      `);
+      await queryRunner.query(`
+        CREATE INDEX "IDX_USERS_READ_DELETED_AT" 
+        ON "users" ("deleted_at");
       `);
 
-      console.log('  ✓ Table "user" created (12 fields, 6 indexes)');
+      console.log('  ✓ Table "users" created (13 fields, 7 indexes)');
     } else {
-      console.log('  ℹ️  Table "user" already exists');
+      console.log('  ℹ️  Table "users" already exists');
+    }
+
+    // ============================================
+    // TABLA: domain_events (Event Store - Read Copy)
+    // ============================================
+    const hasDomainEvents = await queryRunner.hasTable('domain_events');
+    if (!hasDomainEvents) {
+      await queryRunner.createTable(
+        new Table({
+          name: 'domain_events',
+          columns: [
+            {
+              name: 'id',
+              type: 'uuid',
+              isPrimary: true,
+              default: 'uuid_generate_v4()',
+              comment: 'Event ID',
+            },
+            {
+              name: 'aggregate_id',
+              type: 'uuid',
+              isNullable: false,
+              comment: 'ID of the aggregate root (e.g., user ID)',
+            },
+            {
+              name: 'aggregate_type',
+              type: 'varchar',
+              length: '100',
+              isNullable: false,
+              comment: 'Type of the aggregate (e.g., User)',
+            },
+            {
+              name: 'event_type',
+              type: 'varchar',
+              length: '100',
+              isNullable: false,
+              comment: 'Type of domain event',
+            },
+            {
+              name: 'event_data',
+              type: 'jsonb',
+              isNullable: false,
+              comment: 'Complete event payload as JSON',
+            },
+            {
+              name: 'metadata',
+              type: 'jsonb',
+              isNullable: true,
+              comment: 'Additional metadata (user, IP, correlation ID)',
+            },
+            {
+              name: 'version',
+              type: 'int',
+              isNullable: false,
+              default: 1,
+              comment: 'Version number for aggregate state',
+            },
+            {
+              name: 'occurred_at',
+              type: 'timestamp',
+              isNullable: false,
+              default: 'CURRENT_TIMESTAMP',
+              comment: 'When the event occurred',
+            },
+            {
+              name: 'created_at',
+              type: 'timestamp',
+              isNullable: false,
+              default: 'CURRENT_TIMESTAMP',
+              comment: 'When the event was stored',
+            },
+          ],
+        }),
+        true,
+      );
+
+      // Índices optimizados para Event Store (lectura)
+      await queryRunner.query(`
+        CREATE INDEX "IDX_DOMAIN_EVENTS_READ_AGGREGATE_ID" 
+        ON "domain_events" ("aggregate_id");
+      `);
+      await queryRunner.query(`
+        CREATE INDEX "IDX_DOMAIN_EVENTS_READ_AGGREGATE_TYPE" 
+        ON "domain_events" ("aggregate_type");
+      `);
+      await queryRunner.query(`
+        CREATE INDEX "IDX_DOMAIN_EVENTS_READ_EVENT_TYPE" 
+        ON "domain_events" ("event_type");
+      `);
+      await queryRunner.query(`
+        CREATE INDEX "IDX_DOMAIN_EVENTS_READ_OCCURRED_AT" 
+        ON "domain_events" ("occurred_at" DESC);
+      `);
+      await queryRunner.query(`
+        CREATE INDEX "IDX_DOMAIN_EVENTS_READ_CREATED_AT" 
+        ON "domain_events" ("created_at" DESC);
+      `);
+      await queryRunner.query(`
+        CREATE UNIQUE INDEX "IDX_DOMAIN_EVENTS_READ_AGGREGATE_VERSION" 
+        ON "domain_events" ("aggregate_id", "version");
+      `);
+      await queryRunner.query(`
+        CREATE INDEX "IDX_DOMAIN_EVENTS_READ_EVENT_DATA" 
+        ON "domain_events" USING GIN ("event_data");
+      `);
+      await queryRunner.query(`
+        CREATE INDEX "IDX_DOMAIN_EVENTS_READ_METADATA" 
+        ON "domain_events" USING GIN ("metadata");
+      `);
+
+      console.log('  ✓ Table "domain_events" created (9 fields, 8 indexes)');
+    } else {
+      console.log('  ℹ️  Table "domain_events" already exists');
     }
   }
 
@@ -510,9 +602,9 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
   private async cleanReadObsoletes(queryRunner: QueryRunner): Promise<void> {
     console.log('\n🧹 Cleaning obsolete elements in READ database...');
 
-    const hasProjections = await queryRunner.hasTable('user');
-    if (!hasProjections) {
-      console.log('  ℹ️  No user table to clean');
+    const hasUsers = await queryRunner.hasTable('users');
+    if (!hasUsers) {
+      console.log('  ℹ️  No users table to clean');
       return;
     }
 
@@ -544,11 +636,11 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
     try {
       await queryRunner.query(`
         DROP TRIGGER IF EXISTS trigger_update_user_projection_search_vector 
-        ON "user" CASCADE;
+        ON "users" CASCADE;
       `);
       await queryRunner.query(`
         DROP TRIGGER IF EXISTS trigger_update_user_projection_updated_at 
-        ON "user" CASCADE;
+        ON "users" CASCADE;
       `);
       cleanedCount += 2;
     } catch (error) {
@@ -597,10 +689,10 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
             IF EXISTS (
               SELECT 1 
               FROM information_schema.columns 
-              WHERE table_name = 'user' 
+              WHERE table_name = 'users' 
               AND column_name = '${columnName}'
             ) THEN
-              ALTER TABLE "user" DROP COLUMN "${columnName}" CASCADE;
+              ALTER TABLE "users" DROP COLUMN "${columnName}" CASCADE;
             END IF;
           END $$;
         `);
@@ -648,7 +740,8 @@ export class InitializeUsersDatabases1759100000000 implements MigrationInterface
     }
 
     if (isReadDb) {
-      await queryRunner.dropTable('user', true, true);
+      await queryRunner.dropTable('domain_events', true, true);
+      await queryRunner.dropTable('users', true, true);
       console.log('✅ Read tables dropped');
     }
   }

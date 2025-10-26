@@ -3,6 +3,7 @@ import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { RegisterUserCommand } from '../../application/commands/register-user.command';
 import { UpdateUserCommand } from '../../application/commands/update-user.command';
+import { DeleteUserCommand } from '../../application/commands/delete-user.command';
 import { GetUserProjectionQuery } from '../../application/queries/get-user-projection.query';
 import { SearchUsersQuery } from '../../application/queries/search-users.query';
 import { RegisterDto } from '../../application/dtos/register.dto';
@@ -15,7 +16,7 @@ import { RegisterDto } from '../../application/dtos/register.dto';
  * - user.findAll - Obtener todos los usuarios (con paginación)
  * - user.findById - Obtener usuario por ID
  * - user.update - Actualizar usuario por ID
- * - user.delete - Eliminar usuario (soft delete)
+ * - user.delete - Eliminar usuario (soft delete únicamente)
  */
 @Controller()
 export class UserController {
@@ -234,33 +235,38 @@ export class UserController {
   /**
    * user.delete
    * Eliminar un usuario por ID (soft delete)
+   * Actualiza deleted_at y status a BLOCKED
    */
   @MessagePattern('user.delete')
   async deleteUser(@Payload() payload: any) {
-    // Extraer params y query del payload enviado por el API Gateway
+    // Extraer params del payload enviado por el API Gateway
     const params = payload.params || {};
-    const queryParams = payload.query || {};
     const userId = params.id;
-    const hardDelete = queryParams.hard === 'true' || queryParams.hard === true || false;
     
     this.logger.log(`Received user.delete event`);
-    this.logger.log(`Deleting user: ${userId} (hard: ${hardDelete})`);
+    this.logger.log(`Deleting user: ${userId}`);
     
     try {
-      // Soft delete: actualizar status a DELETED
-      // TODO: Implementar comando de eliminación específico
+      // Ejecutar comando de soft delete
+      const command = new DeleteUserCommand(userId, false);
+      const result = await this.commandBus.execute(command);
       
-      // Por ahora, usamos el repositorio directamente
-      this.logger.warn(`Soft delete not fully implemented yet. User ${userId} marked for deletion.`);
+      if (!result.success) {
+        this.logger.warn(`Failed to delete user: ${userId}`, result.validationErrors);
+        return {
+          success: false,
+          message: result.message || 'Error al eliminar usuario',
+          validationErrors: result.validationErrors,
+          timestamp: new Date().toISOString(),
+        };
+      }
+      
+      this.logger.log(`User deleted successfully: ${userId}`);
       
       return {
         success: true,
-        message: hardDelete ? 'Usuario eliminado permanentemente' : 'Usuario eliminado (soft delete)',
-        data: { 
-          id: userId, 
-          deleted: true, 
-          hardDelete 
-        },
+        message: result.message || 'Usuario eliminado exitosamente',
+        data: result.data,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {

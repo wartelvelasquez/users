@@ -8,7 +8,7 @@ import { NotFoundException } from '@nestjs/common';
 /**
  * Handler for GetUserProjectionByEmailQuery
  * 
- * CQRS Query Handler - Returns user by email using indexed lookup
+ * CQRS Query Handler - Busca en BD de LECTURA (users_read)
  */
 @QueryHandler(GetUserProjectionByEmailQuery)
 export class GetUserProjectionByEmailHandler implements IQueryHandler<GetUserProjectionByEmailQuery> {
@@ -29,4 +29,3 @@ export class GetUserProjectionByEmailHandler implements IQueryHandler<GetUserPro
     return projection;
   }
 }
-

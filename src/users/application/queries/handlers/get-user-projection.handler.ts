@@ -8,8 +8,7 @@ import { NotFoundException } from '@nestjs/common';
 /**
  * Handler for GetUserProjectionQuery
  * 
- * CQRS Query Handler - Returns optimized read model
- * Uses denormalized data from user table
+ * CQRS Query Handler - Busca en BD de LECTURA (users_read)
  */
 @QueryHandler(GetUserProjectionQuery)
 export class GetUserProjectionHandler implements IQueryHandler<GetUserProjectionQuery> {
@@ -30,4 +29,3 @@ export class GetUserProjectionHandler implements IQueryHandler<GetUserProjection
     return projection;
   }
 }
-

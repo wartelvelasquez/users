@@ -11,5 +11,6 @@ export { TokenRefreshFailedEvent } from './token-refresh-failed.event';
 export { UserValidationSuccessEvent } from './user-validation-success.event';
 export { UserValidationFailedEvent } from './user-validation-failed.event';
 export { UserLogoutEvent } from './user-logout.event';
+export { UserDeletedEvent } from './user-deleted.event';
 
 

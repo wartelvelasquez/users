@@ -157,6 +157,10 @@ export class ProjectionSyncService implements OnModuleInit {
           await this.handleStatusChanged(eventData, event);
           break;
 
+        case 'UserDeletedEvent':
+          await this.handleUserDeleted(eventData, event);
+          break;
+
         default:
           this.logger.debug(`No handler for event type: ${eventType}`);
       }
@@ -314,6 +318,27 @@ export class ProjectionSyncService implements OnModuleInit {
       .execute();
 
     this.logger.log(`✅ Updated status for user ${eventData.userId}`);
+  }
+
+  /**
+   * Handler: UserDeletedEvent
+   */
+  private async handleUserDeleted(
+    eventData: any,
+    event: DomainEventEntity,
+  ): Promise<void> {
+    await this.readDataSource
+      .createQueryBuilder()
+      .update(UserProjectionEntity)
+      .set({
+        deletedAt: event.occurredAt,
+        status: 'BLOCKED',
+        updatedAt: event.occurredAt,
+      })
+      .where('id = :userId', { userId: eventData.userId })
+      .execute();
+
+    this.logger.log(`✅ Soft deleted user ${eventData.userId} in projection`);
   }
 
   /**

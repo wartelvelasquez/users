@@ -34,6 +34,7 @@
     "test:acceptance:watch": "jest --config ./test/jest-e2e.json test/acceptance --verbose --no-silent --watch",
     "migration:run": "ts-node src/scripts/run-migration.ts",
     "migration:create": "typeorm mi gration:create",
+    "migration:validate": "ts-node src/scripts/validate-tables.ts",
     "db:seed": "ts-node src/scripts/seed-database.ts",
     "db:create": "ts-node src/scripts/creatteste-database.ts",
     "db:create-table": "npm run db:create && ts-node src/scripts/run-migration.ts"

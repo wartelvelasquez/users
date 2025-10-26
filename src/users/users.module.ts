@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { CommonModule } from '../common/common.module';
 
 // Controllers - Este es el que tiene los @MessagePattern
 import { UserController } from './infrastructure/controllers/user.controller';
 
 // Command Handlers
 import { RegisterUserHandler } from './application/handlers/register-user.handler';
+import { DeleteUserHandler } from './application/handlers/delete-user.handler';
 
 // Query Handlers
 import { SearchUsersHandler } from './application/queries/handlers/search-users.handler';
@@ -33,6 +35,7 @@ import { UserEventSourcingRepository } from '../shared/infrastructure/repositori
 import { UserEntity } from '../shared/user.entity';
 import { DomainEventEntity } from '../shared/infrastructure/entities/domain-event.entity';
 import { UserProjectionEntity } from '../shared/infrastructure/entities/user-projection.entity';
+import { UpdateUserHandler } from './application/handlers/update-user.handler';
 
 /**
  * UsersModule - Módulo simplificado para Kafka
@@ -45,6 +48,7 @@ import { UserProjectionEntity } from '../shared/infrastructure/entities/user-pro
 @Module({
   imports: [
     ConfigModule,
+    CommonModule, // Proporciona el cliente Kafka USER-MICRO-SERVICE
     CqrsModule,
     // Write Database entities
     TypeOrmModule.forFeature(
@@ -63,26 +67,25 @@ import { UserProjectionEntity } from '../shared/infrastructure/entities/user-pro
   providers: [
     // Command Handlers
     RegisterUserHandler,
+    UpdateUserHandler,
+    DeleteUserHandler,
     
     // Query Handlers
     SearchUsersHandler,
     GetUserProjectionHandler,
     GetUserProjectionByEmailHandler,
     
-    // Event Handlers (Projections) - Comentados temporalmente
-    // UserRegisteredProjectionHandler,
-    // UserLoginSuccessProjectionHandler,
+    // Event Handlers (Projections) - ACTIVADOS para CQRS
+    UserRegisteredProjectionHandler,
+    UserLoginSuccessProjectionHandler,
     
     // Services
     UserProjectionService,
-    // EventStoreService, // Comentado - requiere más configuración
-    
-    // Repositories - usar string como token porque el handler lo inyecta así
+    EventStoreService,
     {
       provide: 'UserRepository',
       useClass: UserRepositoryImpl,
     },
-    // UserEventSourcingRepository, // Comentado - requiere más configuración
   ],
   exports: [],
 })

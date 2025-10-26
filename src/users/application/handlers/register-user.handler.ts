@@ -93,19 +93,19 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
       // Guardar el usuario en la base de datos
       await this.userRepository.save(user);
 
-      // Emitir evento de usuario registrado para crear proyección (comentado temporalmente)
-      // this.eventBus.publish(new UserRegisteredEvent(
-      //   user.id.value,
-      //   user.email.value,
-      //   {
-      //     email: user.email.value,
-      //     firstName: user.firstName.value,
-      //     lastName: user.lastName.value,
-      //     phone: user.phone?.value,
-      //     status: user.status,
-      //   },
-      //   new Date()
-      // ));
+      // Emitir evento de usuario registrado para crear proyección
+      this.eventBus.publish(new UserRegisteredEvent(
+        user.id.value,
+        user.email.value,
+        {
+          email: user.email.value,
+          firstName: user.firstName.value,
+          lastName: user.lastName.value,
+          phone: user.phone?.value,
+          status: user.status,
+        },
+        new Date()
+      ));
 
       return {
         success: true,

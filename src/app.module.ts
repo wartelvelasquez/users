@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { CqrsModule } from '@nestjs/cqrs';
 import { getWriteDatabaseConfig } from './config/database-write.config';
 import { getReadDatabaseConfig } from './config/database-read.config';
 import { UsersModule } from './users/users.module';
+import { ProjectionSyncService } from './shared/infrastructure/projections/projection-sync.service';
 
 /**
  * AppModule - Configuración Principal con CQRS
@@ -37,6 +39,9 @@ import { UsersModule } from './users/users.module';
     // Módulo de scheduling para sincronización periódica
     ScheduleModule.forRoot(),
 
+    // CQRS Module para EventBus
+    CqrsModule,
+
     // Write Database (Command Side - CQRS)
     TypeOrmModule.forRootAsync({
       name: 'write',
@@ -55,6 +60,9 @@ import { UsersModule } from './users/users.module';
 
     // Users Module - Contiene los @MessagePattern para Kafka
     UsersModule,
+  ],
+  providers: [
+    ProjectionSyncService,
   ],
 })
 export class AppModule {}

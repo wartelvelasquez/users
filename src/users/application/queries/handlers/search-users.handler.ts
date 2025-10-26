@@ -15,8 +15,7 @@ export interface SearchUsersResult {
 /**
  * Handler for SearchUsersQuery
  * 
- * CQRS Query Handler - Complex search with filters and pagination
- * Uses optimized indexes on user table
+ * CQRS Query Handler - Busca en BD de LECTURA (users_read)
  */
 @QueryHandler(SearchUsersQuery)
 export class SearchUsersHandler implements IQueryHandler<SearchUsersQuery> {
@@ -34,83 +33,8 @@ export class SearchUsersHandler implements IQueryHandler<SearchUsersQuery> {
     // Build query
     const queryBuilder = this.projectionRepository.createQueryBuilder('user');
 
-    // Apply filters
-    if (filters.status) {
-      queryBuilder.andWhere('user.status = :status', { status: filters.status });
-    }
-
-    if (filters.kycStatus) {
-      queryBuilder.andWhere('user.kyc_status = :kycStatus', { kycStatus: filters.kycStatus });
-    }
-
-    if (filters.emailVerified !== undefined) {
-      queryBuilder.andWhere('user.email_verified = :emailVerified', {
-        emailVerified: filters.emailVerified,
-      });
-    }
-
-    if (filters.kycPointsPaid !== undefined) {
-      queryBuilder.andWhere('user.kyc_points_paid = :kycPointsPaid', {
-        kycPointsPaid: filters.kycPointsPaid,
-      });
-    }
-
-    if (filters.kycProfile !== undefined) {
-      queryBuilder.andWhere('user.kyc_profile = :kycProfile', {
-        kycProfile: filters.kycProfile,
-      });
-    }
-
-    if (filters.pallaAccount !== undefined) {
-      queryBuilder.andWhere('user.palla_account = :pallaAccount', {
-        pallaAccount: filters.pallaAccount,
-      });
-    }
-
-    if (filters.country) {
-      queryBuilder.andWhere('user.country = :country', { country: filters.country });
-    }
-
-    if (filters.tags && filters.tags.length > 0) {
-      queryBuilder.andWhere('user.tags && :tags', { tags: filters.tags });
-    }
-
-    if (filters.createdAfter) {
-      queryBuilder.andWhere('user.created_at >= :createdAfter', {
-        createdAfter: filters.createdAfter,
-      });
-    }
-
-    if (filters.createdBefore) {
-      queryBuilder.andWhere('user.created_at <= :createdBefore', {
-        createdBefore: filters.createdBefore,
-      });
-    }
-
-    if (filters.lastLoginAfter) {
-      queryBuilder.andWhere('user.last_login_at >= :lastLoginAfter', {
-        lastLoginAfter: filters.lastLoginAfter,
-      });
-    }
-
-    if (filters.lastLoginBefore) {
-      queryBuilder.andWhere('user.last_login_at <= :lastLoginBefore', {
-        lastLoginBefore: filters.lastLoginBefore,
-      });
-    }
-
-    // Full-text search
-    if (filters.searchTerm) {
-      queryBuilder.andWhere(
-        "user.search_vector @@ plainto_tsquery('english', :searchTerm)",
-        { searchTerm: filters.searchTerm },
-      );
-    }
-
     // Apply sorting
-    const sortBy = pagination.sortBy ?? 'created_at';
-    const sortOrder = pagination.sortOrder ?? 'DESC';
-    queryBuilder.orderBy(`user.${sortBy}`, sortOrder);
+    queryBuilder.orderBy('user.createdAt', pagination.sortOrder ?? 'DESC');
 
     // Get total count
     const total = await queryBuilder.getCount();
@@ -130,4 +54,3 @@ export class SearchUsersHandler implements IQueryHandler<SearchUsersQuery> {
     };
   }
 }
-

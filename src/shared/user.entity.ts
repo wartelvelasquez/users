@@ -40,22 +40,6 @@ export class UserEntity {
   @Column({ nullable: true })
   role_id?: string;
 
-  // New fields for user
-  @Column({ name: 'trade_name', nullable: true })
-  tradeName?: string;
-
-  @Column({ name: 'legal_name', nullable: true })
-  legalName?: string;
-
-  @Column({ nullable: true })
-  dv?: number;
-
-  @Column({ name: 'email_notification', nullable: true })
-  emailNotification?: string;
-
-  @Column({ name: 'indicative_contact', nullable: true })
-  indicativeContact?: string;
-
-  @Column({ name: 'category_id', nullable: true })
-  categoryId?: number;
+  @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
+  deletedAt?: Date;
 }

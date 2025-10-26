@@ -11,7 +11,7 @@ import { Entity, PrimaryColumn, Column, Index, UpdateDateColumn } from 'typeorm'
  * 
  * Sincronizado con User Domain Entity y migraciones
  */
-@Entity('user')
+@Entity('users')
 @Index(['email'], { unique: true })
 @Index(['status'])
 @Index(['createdAt'])
@@ -52,6 +52,9 @@ export class UserProjectionEntity {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
+  deletedAt?: Date;
 
   /**
    * Calculate profile completion percentage based on available fields
