@@ -4,8 +4,10 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?style=for-the-badge&logo=apache-kafka&logoColor=white)](https://kafka.apache.org/)
+[![CQRS](https://img.shields.io/badge/CQRS-Architecture-009688?style=for-the-badge)](https://martinfowler.com/bliki/CQRS.html)
+[![DDD](https://img.shields.io/badge/DDD-Architecture-FF6B6B?style=for-the-badge)](https://martinfowler.com/bliki/DomainDrivenDesign.html)
 
-Microservicio de gestión de usuarios construido con **NestJS**, implementando **Domain-Driven Design (DDD)**, **CQRS**, **Event Sourcing** y comunicación mediante **Apache Kafka**.
+Microservicio de gestión de usuarios construido con **NestJS**, implementando **Domain-Driven Design (DDD)**, **CQRS**, **Event Sourcing** y comunicación mediante **Apache Kafka**. Arquitectura optimizada para alta escalabilidad y consistencia eventual.
 
 ---
 
@@ -36,6 +38,7 @@ Microservicio de gestión de usuarios construido con **NestJS**, implementando *
 - ✅ **CQRS** (Command Query Responsibility Segregation) - Separación de escritura y lectura
 - ✅ **Event Sourcing** - Registro completo de eventos de dominio
 - ✅ **Event-Driven Architecture** - Comunicación asíncrona mediante eventos
+- ✅ **Clean Code Principles** - Código mantenible y legible
 
 ### Arquitectura
 
@@ -43,6 +46,7 @@ Microservicio de gestión de usuarios construido con **NestJS**, implementando *
 - 📖 **Read Database** - Base de datos optimizada para lecturas (queries)
 - 🎯 **Event Store** - Almacenamiento de eventos de dominio
 - 🔄 **Projection Synchronization** - Sincronización automática de proyecciones
+- 🚀 **Event-Driven Projections** - Actualizaciones en tiempo real
 
 ### Funcionalidades
 
@@ -52,6 +56,7 @@ Microservicio de gestión de usuarios construido con **NestJS**, implementando *
 - 📊 **Proyecciones Optimizadas** - Para consultas rápidas
 - 🔒 **Seguridad** - Hashing de contraseñas, validaciones
 - 📨 **Kafka Integration** - Comunicación mediante message patterns
+- 🔄 **Sincronización CQRS** - Consistencia eventual garantizada
 
 ---
 
@@ -118,6 +123,23 @@ Command (Write)                      Query (Read)
      ▼                   ▼                ▼                   ▼
 Write Database      Event Store    Read Database     User Projection
 (users_write)    (domain_events)   (users_read)   (user_projections)
+     │                   │                ▲                   ▲
+     │                   │                │                   │
+     └──> EventBus ──────┼────────────────┼───────────────────┘
+                         │                │
+                         └──> ProjectionSyncService ───────────┘
+```
+
+### Flujo de Eliminación de Usuarios (Ejemplo Implementado)
+
+```
+1. Kafka Message (user.delete) → UserController
+2. DeleteUserCommand → DeleteUserHandler
+3. Soft Delete en Write DB (users.deletedAt = NOW())
+4. UserDeletedEvent → EventBus
+5. Event Store (domain_events)
+6. ProjectionSyncService → Update Read DB (users.deletedAt = NOW())
+7. Consistencia eventual alcanzada
 ```
 
 ---
@@ -551,6 +573,9 @@ users/
 - Incluye **Event Sourcing** con Event Store en PostgreSQL
 - Controller usa **Kafka Message Patterns** para comunicación asíncrona
 - Migración única que detecta automáticamente en qué BD se ejecuta
+- **ProjectionSyncService** para sincronización automática entre bases de datos
+- **Clean Code** aplicado con métodos auxiliares y comentarios en español
+- **Event-Driven Architecture** para actualizaciones en tiempo real
 
 ---
 
@@ -871,18 +896,20 @@ Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](L
 
 ## 📊 Estado del Proyecto
 
-- ✅ **Arquitectura DDD** - Implementada
-- ✅ **CQRS** - Bases de datos separadas (Write/Read)
-- ✅ **Event Sourcing** - Event Store funcional
+- ✅ **Arquitectura DDD** - Implementada con agregados y value objects
+- ✅ **CQRS** - Bases de datos separadas (Write/Read) con sincronización automática
+- ✅ **Event Sourcing** - Event Store funcional con ProjectionSyncService
 - ✅ **Kafka Integration** - Message patterns implementados
+- ✅ **Clean Code** - Principios aplicados con refactorización completa
+- ✅ **Sincronización CQRS** - Eliminación de usuarios con consistencia eventual
 - ⚠️ **Testing** - En desarrollo
-- ⚠️ **Documentación** - En progreso
+- ✅ **Documentación** - Actualizada con arquitectura implementada
 
 ---
 
-**Versión**: 0.0.1  
-**Última actualización**: 2025-10-24  
-**Estado**: En desarrollo activo
+**Versión**: 0.0.1
+**Última actualización**: 2025-10-26
+**Estado**: En desarrollo activo con arquitectura CQRS/DDD implementada
 
 ---
 

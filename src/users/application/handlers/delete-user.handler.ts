@@ -45,163 +45,49 @@ export class DeleteUserHandler
   ) {}
 
   async execute(command: DeleteUserCommand): Promise<DeleteUserResponse> {
-    this.logger.log('Starting delete user handler execution', {
+    this.logger.log('Iniciando ejecución del handler de eliminación de usuario', {
       userId: command.userId,
       hardDelete: command.hardDelete,
     });
 
     try {
-      // Validate userId
-      if (!command.userId || command.userId.trim().length === 0) {
-        this.logger.warn('User ID validation failed: empty or null');
-        return {
-          success: false,
-          validationErrors: {
-            isValid: false,
-            errors: [
-              {
-                field: 'userId',
-                message: 'User ID is required',
-                code: 'USER_ID_REQUIRED',
-              },
-            ],
-          },
-        };
+      // Validar ID de usuario
+      if (!this.isValidUserId(command.userId)) {
+        return this.createValidationError('userId', 'El ID de usuario es requerido', 'USER_ID_REQUIRED');
       }
 
-      this.logger.log('Looking for user by ID', { userId: command.userId });
-
-      // Find user by ID
-      const user = await this.userRepository.findById(
-        UserId.fromString(command.userId)
-      );
-      
+      // Buscar usuario por ID
+      const user = await this.findUserById(command.userId);
       if (!user) {
-        this.logger.warn('User not found', { userId: command.userId });
-        return {
-          success: false,
-          validationErrors: {
-            isValid: false,
-            errors: [
-              {
-                field: 'userId',
-                message: 'User not found',
-                code: 'USER_NOT_FOUND',
-              },
-            ],
-          },
-        };
+        return this.createValidationError('userId', 'Usuario no encontrado', 'USER_NOT_FOUND');
       }
 
-      this.logger.log('User found successfully', {
-        userId: command.userId,
-        email: user.email.value,
-      });
-
-      // Check if hard delete is requested
+      // Verificar si se solicita eliminación permanente
       if (command.hardDelete) {
-        this.logger.warn('Hard delete requested but not implemented yet', {
-          userId: command.userId,
-        });
-        // TODO: Implement hard delete if needed
-        return {
-          success: false,
-          validationErrors: {
-            isValid: false,
-            errors: [
-              {
-                field: 'hardDelete',
-                message: 'Hard delete is not supported yet',
-                code: 'HARD_DELETE_NOT_SUPPORTED',
-              },
-            ],
-          },
-        };
+        return this.handleHardDeleteNotSupported(command.userId);
       }
 
-      // Perform soft delete
-      this.logger.log('Performing soft delete', {
-        userId: command.userId,
-      });
-
-      // Get the internal TypeORM repository from the userRepository
-      const internalRepo = (this.userRepository as any).userRepository;
-      if (!internalRepo || typeof internalRepo.update !== 'function') {
-        this.logger.error('Internal repository not available');
-        throw new Error('Database update failed: internal repository not available');
-      }
-
-      // Update user with soft delete fields
+      // Realizar eliminación suave
       const now = new Date();
-      await internalRepo.update(command.userId, {
-        deletedAt: now,
-        status: UserStatus.BLOCKED,
-        updatedAt: now,
-      });
+      await this.performSoftDelete(command.userId, now);
 
-      this.logger.log('User soft deleted successfully', {
-        userId: command.userId,
-        deletedAt: now.toISOString(),
-      });
-
-      // Get updated user data
-      const deletedUser = await this.userRepository.findById(
-        UserId.fromString(command.userId)
-      );
-
+      // Obtener datos actualizados del usuario
+      const deletedUser = await this.findUserById(command.userId);
       if (!deletedUser) {
-        this.logger.error('User not found after deletion', {
-          userId: command.userId,
-        });
-        return {
-          success: false,
-          validationErrors: {
-            isValid: false,
-            errors: [
-              {
-                field: 'userId',
-                message: 'User not found after deletion',
-                code: 'USER_NOT_FOUND_AFTER_DELETE',
-              },
-            ],
-          },
-        };
+        return this.createValidationError('userId', 'Usuario no encontrado después de la eliminación', 'USER_NOT_FOUND_AFTER_DELETE');
       }
 
-      this.logger.log('Soft delete completed successfully', {
+      // Publicar evento de dominio para sincronización de proyección
+      await this.publishUserDeletedEvent(command.userId, deletedUser.email.value, now, command.hardDelete);
+
+      this.logger.log('Eliminación suave completada exitosamente', {
         userId: command.userId,
         status: deletedUser.status,
       });
 
-      // Publish domain event for projection sync
-      const userDeletedEvent = new UserDeletedEvent(
-        command.userId,
-        deletedUser.email.value,
-        now,
-        command.hardDelete,
-      );
-      
-      // Store event in event store for projection sync
-      const latestVersion = await this.eventStore.getLatestVersion(command.userId);
-      await this.eventStore.appendEvent(
-        command.userId,
-        'User',
-        userDeletedEvent,
-        latestVersion + 1,
-      );
-
-      // Also publish to event bus for real-time processing
-      this.eventBus.publish(userDeletedEvent);
-
-      this.logger.log('User deleted event stored and published', {
-        userId: command.userId,
-        eventType: userDeletedEvent.getEventType(),
-        version: latestVersion + 1,
-      });
-
       return {
         success: true,
-        message: 'User deleted successfully (soft delete)',
+        message: 'Usuario eliminado exitosamente (eliminación suave)',
         data: {
           id: deletedUser.id.value,
           email: deletedUser.email.value,
@@ -211,60 +97,125 @@ export class DeleteUserHandler
         },
       };
     } catch (error) {
-      this.logger.error('Error in delete user handler', {
+      this.logger.error('Error en el handler de eliminación de usuario', {
         error: error.message,
         stack: error.stack,
         userId: command.userId,
       });
 
-      // Handle specific validation errors
+      // Manejar errores de validación específicos
       if (error instanceof ValidationException) {
-        return {
-          success: false,
-          validationErrors: {
-            isValid: false,
-            errors: [
-              {
-                field: 'validation',
-                message: error.message,
-                code: 'VALIDATION_ERROR',
-              },
-            ],
-          },
-        };
+        return this.createValidationError('validation', error.message, 'VALIDATION_ERROR');
       }
 
       if (error instanceof CustomNotFoundException) {
-        return {
-          success: false,
-          validationErrors: {
-            isValid: false,
-            errors: [
-              {
-                field: 'userId',
-                message: 'User not found',
-                code: 'USER_NOT_FOUND',
-              },
-            ],
-          },
-        };
+        return this.createValidationError('userId', 'Usuario no encontrado', 'USER_NOT_FOUND');
       }
 
-      // Generic error
-      return {
-        success: false,
-        validationErrors: {
-          isValid: false,
-          errors: [
-            {
-              field: 'system',
-              message: 'Error deleting user',
-              code: 'DELETE_FAILED',
-            },
-          ],
-        },
-      };
+      // Error genérico
+      return this.createValidationError('system', 'Error eliminando usuario', 'DELETE_FAILED');
     }
+  }
+
+  /**
+   * Valida que el ID de usuario sea válido
+   */
+  private isValidUserId(userId: string): boolean {
+    return !!userId && userId.trim().length > 0;
+  }
+
+  /**
+   * Busca un usuario por ID
+   */
+  private async findUserById(userId: string) {
+    this.logger.log('Buscando usuario por ID', { userId });
+    return await this.userRepository.findById(UserId.fromString(userId));
+  }
+
+  /**
+   * Maneja el caso cuando se solicita eliminación permanente no soportada
+   */
+  private handleHardDeleteNotSupported(userId: string): DeleteUserResponse {
+    this.logger.warn('Eliminación permanente solicitada pero no implementada', { userId });
+    return this.createValidationError('hardDelete', 'La eliminación permanente no está soportada', 'HARD_DELETE_NOT_SUPPORTED');
+  }
+
+  /**
+   * Realiza la eliminación suave del usuario
+   */
+  private async performSoftDelete(userId: string, timestamp: Date): Promise<void> {
+    this.logger.log('Realizando eliminación suave', { userId });
+
+    // Obtener el repositorio interno de TypeORM desde el userRepository
+    const internalRepo = (this.userRepository as any).userRepository;
+    if (!internalRepo || typeof internalRepo.update !== 'function') {
+      this.logger.error('Repositorio interno no disponible');
+      throw new Error('Error en actualización de base de datos: repositorio interno no disponible');
+    }
+
+    await internalRepo.update(userId, {
+      deletedAt: timestamp,
+      status: UserStatus.BLOCKED,
+      updatedAt: timestamp,
+    });
+
+    this.logger.log('Usuario eliminado suavemente exitosamente', {
+      userId,
+      deletedAt: timestamp.toISOString(),
+    });
+  }
+
+  /**
+   * Publica el evento de usuario eliminado
+   */
+  private async publishUserDeletedEvent(
+    userId: string,
+    email: string,
+    timestamp: Date,
+    hardDelete: boolean,
+  ): Promise<void> {
+    const userDeletedEvent = new UserDeletedEvent(userId, email, timestamp, hardDelete);
+    
+    // Almacenar evento en el event store para sincronización de proyección
+    const latestVersion = await this.eventStore.getLatestVersion(userId);
+    await this.eventStore.appendEvent(
+      userId,
+      'User',
+      userDeletedEvent,
+      latestVersion + 1,
+    );
+
+    // También publicar al event bus para procesamiento en tiempo real
+    this.eventBus.publish(userDeletedEvent);
+
+    this.logger.log('Evento de usuario eliminado almacenado y publicado', {
+      userId,
+      eventType: userDeletedEvent.getEventType(),
+      version: latestVersion + 1,
+    });
+  }
+
+  /**
+   * Crea un error de validación estandarizado
+   */
+  private createValidationError(
+    field: string,
+    message: string,
+    code: string,
+  ): DeleteUserResponse {
+    return {
+      success: false,
+      validationErrors: {
+        isValid: false,
+        errors: [
+          {
+            field,
+            message,
+            code,
+          },
+        ],
+      },
+    };
   }
 }
 
