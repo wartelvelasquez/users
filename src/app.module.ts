@@ -6,7 +6,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { getWriteDatabaseConfig } from './config/database-write.config';
 import { getReadDatabaseConfig } from './config/database-read.config';
 import { UsersModule } from './users/users.module';
-import { ProjectionSyncService } from './shared/infrastructure/projections/projection-sync.service';
+import { DirectProjectionService } from './shared/infrastructure/projections/direct-projection.service';
 
 /**
  * AppModule - Configuración Principal con CQRS
@@ -62,7 +62,7 @@ import { ProjectionSyncService } from './shared/infrastructure/projections/proje
     UsersModule,
   ],
   providers: [
-    ProjectionSyncService,
+    DirectProjectionService,
   ],
 })
 export class AppModule {}

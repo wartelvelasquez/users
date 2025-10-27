@@ -10,6 +10,7 @@ import { UserController } from './infrastructure/controllers/user.controller';
 // Command Handlers
 import { RegisterUserHandler } from './application/handlers/register-user.handler';
 import { DeleteUserHandler } from './application/handlers/delete-user.handler';
+import { UpdateUserHandler } from './application/handlers/update-user.handler';
 
 // Query Handlers
 import { SearchUsersHandler } from './application/queries/handlers/search-users.handler';
@@ -17,14 +18,15 @@ import { GetUserProjectionHandler } from './application/queries/handlers/get-use
 import { GetUserProjectionByEmailHandler } from './application/queries/handlers/get-user-projection-by-email.handler';
 
 // Event Handlers (Projections)
-import { 
+import {
   UserRegisteredProjectionHandler,
-  UserLoginSuccessProjectionHandler 
+  UserLoginSuccessProjectionHandler
 } from './application/projections/user-projection.event-handlers';
 
 // Services
 import { UserProjectionService } from './application/projections/user-projection.service';
 import { EventStoreService } from '../shared/infrastructure/event-store/event-store.service';
+import { DirectProjectionService } from '../shared/infrastructure/projections/direct-projection.service';
 
 // Repositories
 import { UserRepository } from '../shared/domain/repositories/user.repository';
@@ -35,7 +37,6 @@ import { UserEventSourcingRepository } from '../shared/infrastructure/repositori
 import { UserEntity } from '../shared/user.entity';
 import { DomainEventEntity } from '../shared/infrastructure/entities/domain-event.entity';
 import { UserProjectionEntity } from '../shared/infrastructure/entities/user-projection.entity';
-import { UpdateUserHandler } from './application/handlers/update-user.handler';
 
 /**
  * UsersModule - Módulo simplificado para Kafka
@@ -82,6 +83,7 @@ import { UpdateUserHandler } from './application/handlers/update-user.handler';
     // Services
     UserProjectionService,
     EventStoreService,
+    DirectProjectionService,
     {
       provide: 'UserRepository',
       useClass: UserRepositoryImpl,
